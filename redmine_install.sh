@@ -8,8 +8,7 @@
 #  * redmine_db_pass - Change to whatever you want your database password to be
 #  * redmine_db_user - Change to whatever you want the db user to be
 #  * redmine_db - Change to whatever you want the db name to be
-#  * redmine.localdomain - Change to your hostname
-#  * yourdomain.com
+#  * redmine.localdomain - Change to your hostname domain
 #  * sendgrid_auth_name
 #  * sendgrid_auth_password
 
@@ -18,22 +17,23 @@ sudo apt-get update
 sudo apt-get upgrade -y
 
 # Install Necessary System Packages
-sudo apt-get install -y git postgresql imagemagick vim libpq-dev libmagickwand-dev \
-libcurl4-openssl-dev apache2-threaded-dev libapr1-dev libaprutil1-dev
+sudo apt-get install -y git postgresql imagemagick vim libpq-dev libmagickwand-dev libcurl4-openssl-dev apache2-threaded-dev libapr1-dev libaprutil1-dev curl apache2-mpm-worker
 
 # Set the hostname of this system
 sudo hostname redmine.localdomain
 echo $(hostname) | sudo tee /etc/hostname
+sudo sed -i "s/127.0.1.1.*/127.0.1.1    $(hostname)/" /etc/hosts
 
 # Download and install redmine to /var/www/redmine
 # Will checkout 2.4-stable
 cd /var/www
-git clone -b 2.4-stable https://github.com/redmine/redmine
+sudo git clone -b 2.4-stable https://github.com/redmine/redmine
 cd redmine
+sudo chown -R $(whoami): /var/www/redmine
 
 # Setup the database
 sudo -u postgres psql <<EOF
-CREATE ROLE redmine LOGIN ENCRYPTED PASSWORD 'redmine_db_pass' NOINHERIT VALID UNTIL 'infinity';
+CREATE ROLE redmine_db_user LOGIN ENCRYPTED PASSWORD 'redmine_db_pass' NOINHERIT VALID UNTIL 'infinity';
 EOF
 # This creates the database. I don't know postgres enough to know why I had to deviate
 # from the redmine docs and do the createdb command and had to specify -T template0 because
@@ -57,8 +57,21 @@ EOF
 # 1.9.2, 1.9.3, 2.0.0
 curl -sSL https://get.rvm.io | sudo bash -s stable --ruby=2.0.0
 
+sudo addgroup $(whoami) rvm
+echo "source /etc/profile.d/rvm.sh" >> ~/.bash_profile
+echo "source /etc/profile.d/rvm.sh" |sudo tee -a /root/.bash_profile
+source /etc/profile.d/rvm.sh
+
 # Install bundler and gem bundles
 sudo gem install bundler
+# Email setup with sendgrid
+cat > Gemfile.local <<EOF
+# Gemfile.local
+gem 'mail'
+gem 'json'
+gem 'sendgrid'
+gem 'passenger'
+EOF
 sudo bundle install --without development test
 
 # Generate Secret token
@@ -68,21 +81,12 @@ rake generate_secret_token
 RAILS_ENV=production rake db:migrate
 
 # Load Initial Data
-RAILS_ENV=production REDMINE_LANG=en rake redmine_db:load_default_data
+RAILS_ENV=production REDMINE_LANG=en rake redmine:load_default_data
 
 # Setup permissions
 mkdir -p tmp tmp/pdf public/plugin_assets repos/git_repos
 sudo chown -R www-data:www-data files log tmp public/plugin_assets repos/git_repos
-sudo chmod -R 755 files log tmp public/plugin_assets
-
-# Email setup with sendgrid
-cat > Gemfile.local <<EOF
-# Gemfile.local
-gem 'mail'
-gem 'json'
-gem 'sendgrid'
-gem 'passenger'
-EOF
+sudo chmod -R 755 files log tmp public/plugin_assets repos/git_repos
 
 # Install the new gems for sendgrid
 sudo bundle install
@@ -97,25 +101,33 @@ cat >> config/environments/production.rb <<EOF
     :authentication => :plain,
     :user_name      => 'sendgrid_auth_name',
     :password       => 'sendgrid_auth_password',
-    :domain         => 'yourdomain.com'
+    :domain         => 'redmine.localdomain'
   }
   ActionMailer::Base.delivery_method = :smtp
 end
 EOF
 
 # Setup of the apache config for passenger
+cat > /tmp/passenger.cfg <<EOF
+   LoadModule passenger_module /usr/local/rvm/gems/ruby-2.0.0-p451@global/gems/passenger-4.0.37/buildout/apache2/mod_passenger.so
+   <IfModule mod_passenger.c>
+     PassengerRoot /usr/local/rvm/gems/ruby-2.0.0-p451@global/gems/passenger-4.0.37
+     PassengerDefaultRuby /usr/local/rvm/wrappers/ruby-2.0.0-p451@global/ruby
+   </IfModule>
+EOF
+cat /tmp/passenger.cfg /etc/apache2/sites-available/default | sudo tee /etc/apache2/sites-available/default
+
 sudo sed -i 's/<\/VirtualHost>//' /etc/apache2/sites-available/default
-sudo sed -i 's%DocumentRoot.*%DocumentRoot /var/www/redmine/public%' default
-sudo cat >> /etc/apache2/sites-available/default <<EOF
+sudo sed -i 's%DocumentRoot.*%DocumentRoot /var/www/redmine/public%' /etc/apache2/sites-available/default
+cat | sudo tee -a /etc/apache2/sites-available/default <<EOF
       <Directory /var/www/redmine/public>
          # This relaxes Apache security settings.
          AllowOverride all
          # MultiViews must be turned off.
          Options -MultiViews
       </Directory>
-   </VirtualHost>
+</VirtualHost>
 EOF
-sudo ln -s ~/redmine-install /var/www/redmine-install
 
 # Passenger setup
 echo "Fusion Passenger will now be installed through a semi-automated installer"
