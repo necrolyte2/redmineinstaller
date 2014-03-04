@@ -58,9 +58,9 @@ EOF
 curl -sSL https://get.rvm.io | sudo bash -s stable --ruby=2.0.0
 
 sudo addgroup $(whoami) rvm
-echo "source /etc/profile.d/rvm.sh" >> ~/.bash_profile
-echo "source /etc/profile.d/rvm.sh" |sudo tee -a /root/.bash_profile
-source /etc/profile.d/rvm.sh
+echo ". /etc/profile.d/rvm.sh" >> ~/.bash_profile
+echo ". /etc/profile.d/rvm.sh" |sudo tee -a /root/.bash_profile
+. /etc/profile.d/rvm.sh
 
 # Install bundler and gem bundles
 sudo gem install bundler
