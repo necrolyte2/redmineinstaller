@@ -58,8 +58,8 @@ EOF
 curl -sSL https://get.rvm.io | sudo bash -s stable --ruby=2.0.0
 
 sudo addgroup $(whoami) rvm
-echo ". /etc/profile.d/rvm.sh" >> ~/.bash_profile
-echo ". /etc/profile.d/rvm.sh" |sudo tee -a /root/.bash_profile
+echo ". /etc/profile.d/rvm.sh" >> ~/.bashrc
+echo ". /etc/profile.d/rvm.sh" |sudo tee -a /root/.bashrc
 . /etc/profile.d/rvm.sh
 
 # Install bundler and gem bundles
@@ -72,7 +72,7 @@ gem 'json'
 gem 'sendgrid'
 gem 'passenger'
 EOF
-sudo bundle install --without development test
+bundle install --path vendor/bundle --without development test
 
 # Generate Secret token
 rake generate_secret_token
@@ -107,12 +107,20 @@ cat >> config/environments/production.rb <<EOF
 end
 EOF
 
+# Passenger setup
+echo "Fusion Passenger will now be installed through a semi-automated installer"
+echo "The apache config files should already be modified for you so you shouldn't have to do any config changes like the installer asks"
+echo "The only thing you need to do is unselect python from the languages you are interested in and press enter a few times"
+read -p "Press enter when you are ready"
+rvmsudo vendor/bundle/ruby/2.0.0*/gems/passenger-*/bin/passenger-install-apache2-module
+sudo service apache2 restart
+
 # Setup of the apache config for passenger
 cat > /tmp/passenger.cfg <<EOF
-   LoadModule passenger_module /usr/local/rvm/gems/ruby-2.0.0-p451@global/gems/passenger-4.0.37/buildout/apache2/mod_passenger.so
+   LoadModule passenger_module $(pwd)/$(ls vendor/bundle/ruby/2.0.0/gems/passenger-*/buildout/apache2/mod_passenger.so)
    <IfModule mod_passenger.c>
-     PassengerRoot /usr/local/rvm/gems/ruby-2.0.0-p451@global/gems/passenger-4.0.37
-     PassengerDefaultRuby /usr/local/rvm/wrappers/ruby-2.0.0-p451@global/ruby
+     PassengerRoot $(pwd)/$(ls -d vendor/bundle/ruby/2.0.0/gems/passenger-*)
+     PassengerDefaultRuby $(ls $GEM_HOME/wrappers/ruby)
    </IfModule>
 EOF
 cat /tmp/passenger.cfg /etc/apache2/sites-available/default | sudo tee /etc/apache2/sites-available/default
@@ -129,13 +137,6 @@ cat | sudo tee -a /etc/apache2/sites-available/default <<EOF
 </VirtualHost>
 EOF
 
-# Passenger setup
-echo "Fusion Passenger will now be installed through a semi-automated installer"
-echo "The apache config files should already be modified for you so you shouldn't have to do any config changes like the installer asks"
-echo "The only thing you need to do is unselect python from the languages you are interested in and press enter a few times"
-read -p "Press enter when you are ready"
-sudo /usr/local/rvm/gems/ruby-2.0.0*/gems/passenger-*/bin/passenger-install-apache2-module
-sudo service apache2 restart
 
 echo "Should now have redmine installed"
 echo "Visit http://localhost to view your site"
