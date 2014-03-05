@@ -75,13 +75,13 @@ EOF
 bundle install --path vendor/bundle --without development test
 
 # Generate Secret token
-rake generate_secret_token
+bundle exec rake generate_secret_token
 
 # Create DB Structure
-RAILS_ENV=production rake db:migrate
+RAILS_ENV=production bundle exec rake db:migrate
 
 # Load Initial Data
-RAILS_ENV=production REDMINE_LANG=en rake redmine:load_default_data
+RAILS_ENV=production REDMINE_LANG=en bundle exec rake redmine:load_default_data
 
 # Setup permissions
 mkdir -p tmp tmp/pdf public/plugin_assets repos/git_repos
@@ -144,3 +144,4 @@ echo "If you want to import data from a different installation then you will wan
 echo "dropdb -h localhost -U redmine_db_user redmine_db"
 echo "sudo -u postgres createdb -E UTF8 --locale=en_US.UTF-8 redmine_db -O redmine_db_user -T template0"
 echo "pg_restore --verbose --clean --no-acl --no-owner -h localhost -U redmine_db_user -d redmine_db /path/to/db.dump"
+echo "RAILS_ENV=production bundle exec rake db:migrate"
