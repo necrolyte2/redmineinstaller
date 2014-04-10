@@ -57,13 +57,19 @@ EOF
 # 1.9.2, 1.9.3, 2.0.0
 curl -sSL https://get.rvm.io | sudo bash -s stable --ruby=2.0.0
 
+# Just really make sure it is installed
+sudo rvm install 2.0.0
+
+# And activate rvm ruby 2.0.0
+rvm 2.0.0
+
 sudo addgroup $(whoami) rvm
 echo ". /etc/profile.d/rvm.sh" >> ~/.bashrc
 echo ". /etc/profile.d/rvm.sh" |sudo tee -a /root/.bashrc
 . /etc/profile.d/rvm.sh
 
 # Install bundler and gem bundles
-sudo gem install bundler
+rvmsudo gem install bundler
 # Email setup with sendgrid
 cat > Gemfile.local <<EOF
 # Gemfile.local
@@ -89,7 +95,7 @@ sudo chown -R www-data:www-data files log tmp public/plugin_assets repos/git_rep
 sudo chmod -R 755 files log tmp public/plugin_assets repos/git_repos
 
 # Install the new gems for sendgrid
-sudo bundle install
+rvmsudo bundle install
 
 # Config for sendgrid
 # Should drop the config in at the end of the config
